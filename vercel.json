@@ -1,0 +1,6 @@
+{
+  "buildCommand": "pnpm --filter @workspace/boat-booth run build",
+  "outputDirectory": "artifacts/boat-booth/dist/public",
+  "installCommand": "pnpm install",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
