@@ -2,7 +2,6 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
-import { randomUUID } from "node:crypto";
 import { networkInterfaces } from "node:os";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
@@ -30,41 +29,66 @@ try {
   // clear error if XAI_API_KEY ends up unset.
 }
 
-// In-memory store for generated photos, keyed by a random id, so each one
-// gets its own short, scannable download URL instead of embedding the whole
-// (multi-MB base64) image in a QR code. Lives only for this dev-server
-// process's lifetime — fine for a booth preview, not meant to persist.
-const photoStore = new Map<string, Buffer>();
+// Same host xAI's hosted generated-image URLs come from — /api/photos below
+// only ever proxies this host, never an arbitrary one, so it can't be used
+// as an open proxy. Mirrors api/photos.js (the Vercel production version of
+// this same endpoint) — keep the two in sync.
+const XAI_IMAGE_HOST = "imgen.x.ai";
 
 /**
  * Dev-only server-side proxy to xAI's Grok Imagine image-edit endpoint, so
  * the API key never reaches the browser. See .agents/memory/xai-grok-imagine.md
  * for the verified request/response shapes and a known intermittent 500
- * outage on xAI's side.
+ * outage on xAI's side. Mirrors api/generate-photo.js + api/photos.js (the
+ * Vercel production versions) — this exists separately because Vite's dev
+ * server doesn't run Vercel's serverless functions.
  */
-function xaiImageProxyPlugin(): Plugin {
+function xaiImageProxyPlugin(port: number): Plugin {
   return {
     name: "xai-image-proxy",
     configureServer(server) {
-      // Serves a previously generated photo by id — this is the URL a
-      // guest's QR scan resolves to, so it must work from another device on
-      // the same network, not just this one. Vite's dev server already
-      // listens on 0.0.0.0 (see server.host below); the URL itself is built
-      // with getLanAddress() in /api/generate-photo below, not req.headers.host,
-      // since that's "localhost" whenever the booth screen opens the app via
-      // localhost — meaningless to a guest's phone.
-      server.middlewares.use("/api/photos/", (req, res) => {
-        const id = (req.url || "").replace(/^\//, "").replace(/\.png$/, "");
-        const buffer = photoStore.get(id);
-        if (!buffer) {
-          res.statusCode = 404;
-          res.end("Not found");
+      // Proxies a download from xAI's temporary hosted image URL, adding a
+      // Content-Disposition header so scanning the QR code on the result
+      // screen triggers an actual download instead of opening the image.
+      server.middlewares.use("/api/photos", async (req, res) => {
+        const src = new URLSearchParams(req.url?.split("?")[1] || "").get("src");
+        if (!src) {
+          res.statusCode = 400;
+          res.end("Missing src");
           return;
         }
-        res.statusCode = 200;
-        res.setHeader("Content-Type", "image/png");
-        res.setHeader("Content-Disposition", 'attachment; filename="boat-booth-photo.png"');
-        res.end(buffer);
+
+        let url: URL;
+        try {
+          url = new URL(src);
+        } catch {
+          res.statusCode = 400;
+          res.end("Invalid src");
+          return;
+        }
+
+        if (url.hostname !== XAI_IMAGE_HOST) {
+          res.statusCode = 400;
+          res.end("Invalid source host");
+          return;
+        }
+
+        try {
+          const upstream = await fetch(url.toString());
+          if (!upstream.ok) {
+            res.statusCode = 502;
+            res.end("Upstream fetch failed");
+            return;
+          }
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.statusCode = 200;
+          res.setHeader("Content-Type", upstream.headers.get("content-type") || "image/jpeg");
+          res.setHeader("Content-Disposition", 'attachment; filename="boat-booth-photo.jpg"');
+          res.end(buffer);
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(err instanceof Error ? err.message : "Unknown server error");
+        }
       });
 
       server.middlewares.use("/api/generate-photo", async (req, res) => {
@@ -109,7 +133,7 @@ function xaiImageProxyPlugin(): Plugin {
               prompt,
               image: { type: "image_url", image_url: photoBase64 },
               n: 1,
-              response_format: "b64_json",
+              response_format: "url",
             }),
           });
 
@@ -121,30 +145,22 @@ function xaiImageProxyPlugin(): Plugin {
           }
 
           const json = await xaiRes.json();
-          const b64 = json?.data?.[0]?.b64_json;
-          const url = json?.data?.[0]?.url;
-          const photoUrl = b64 ? `data:image/png;base64,${b64}` : url;
+          const xaiUrl: string | undefined = json?.data?.[0]?.url;
 
-          if (!photoUrl) {
+          if (!xaiUrl) {
             res.statusCode = 502;
-            res.end(JSON.stringify({ error: "xAI response had no image data." }));
+            res.end(JSON.stringify({ error: "xAI response had no image URL." }));
             return;
           }
 
-          // Also store the bytes under a short id so the result screen can
-          // show a QR code pointing at a small URL (/api/photos/<id>.png)
-          // instead of trying to encode the whole image into the QR itself.
-          let downloadUrl: string | undefined;
-          if (b64) {
-            const photoId = randomUUID();
-            photoStore.set(photoId, Buffer.from(b64, "base64"));
-            const lanAddress = getLanAddress();
-            const host = lanAddress ? `${lanAddress}:${port}` : req.headers.host;
-            downloadUrl = `${req.headers["x-forwarded-proto"] || "http"}://${host}/api/photos/${photoId}.png`;
-          }
+          // The /api/photos proxy above needs to be reachable from the
+          // guest's phone, not just this machine — see getLanAddress().
+          const lanAddress = getLanAddress();
+          const host = lanAddress ? `${lanAddress}:${port}` : req.headers.host;
+          const downloadUrl = `${req.headers["x-forwarded-proto"] || "http"}://${host}/api/photos?src=${encodeURIComponent(xaiUrl)}`;
 
           res.statusCode = 200;
-          res.end(JSON.stringify({ photoUrl, downloadUrl }));
+          res.end(JSON.stringify({ photoUrl: xaiUrl, downloadUrl }));
         } catch (err) {
           res.statusCode = 500;
           res.end(JSON.stringify({ error: err instanceof Error ? err.message : "Unknown server error" }));
@@ -185,7 +201,7 @@ export default defineConfig(async ({ command }) => {
       react(),
       tailwindcss(),
       runtimeErrorOverlay(),
-      xaiImageProxyPlugin(),
+      xaiImageProxyPlugin(port),
       ...(process.env.NODE_ENV !== "production" &&
       process.env.REPL_ID !== undefined
         ? [
