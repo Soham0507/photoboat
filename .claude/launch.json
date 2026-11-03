@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "boat-booth",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/boat-booth", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}
