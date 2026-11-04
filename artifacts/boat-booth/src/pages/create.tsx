@@ -8,7 +8,6 @@ import {
   Scene,
 } from "@workspace/api-client-react";
 import QRCode from "qrcode";
-import { Button } from "@/components/ui/button";
 import { BlinkingDotsScene } from "@/components/BlinkingDotsScene";
 import { Camera, ChevronLeft, RefreshCcw, Download, ArrowRight, Loader2, QrCode } from "lucide-react";
 import pontoonImg from "@assets/pontoon_wi.jpg_1780096222900.jpeg";
@@ -20,6 +19,13 @@ const SCENE_IMAGES: Record<string, string> = {
   "wakesurfing": wakeImg,
   "bass-fishing": bassImg,
 };
+
+const SCENE_META: Record<string, { tag: string; tagBg: string; shadow: string }> = {
+  "pontoon-sunset": { tag: "most picked", tagBg: "var(--bb-lime)", shadow: "#FF6B4A" },
+  "wakesurfing": { tag: "high energy", tagBg: "#FFD23F", shadow: "#3FC6FF" },
+  "bass-fishing": { tag: "chill mode", tagBg: "#FF7AD9", shadow: "var(--bb-lime)" },
+};
+const FALLBACK_META = { tag: "pick me", tagBg: "#FFD23F", shadow: "#3FC6FF" };
 
 type Step = "scene" | "capture" | "processing" | "result";
 
@@ -98,50 +104,81 @@ export default function Create() {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] w-full bg-background flex flex-col relative overflow-hidden">
-      {/* Background ambient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-background pointer-events-none" />
-
+    <div
+      className="bb-root min-h-[100dvh] w-full overflow-hidden relative"
+      style={{ "--bb-lime": "#C8F53A", color: "#061A2E", background: "#F2FBFF" } as React.CSSProperties}
+    >
       {/* Header */}
-      <header className="absolute top-0 w-full p-8 z-50 flex items-center justify-between">
-        <Button variant="ghost" size="lg" className="rounded-full text-lg" onClick={reset}>
-          <ChevronLeft className="mr-2 w-6 h-6" /> Start Over
-        </Button>
+      <header className="absolute top-0 w-full p-6 z-50 flex items-center justify-between">
+        <button
+          onClick={reset}
+          className="bb-press bb-mono inline-flex items-center gap-2 rounded-full"
+          style={{ padding: "10px 20px", background: "#FFFFFF", border: "2px solid #061A2E", boxShadow: "3px 3px 0 #061A2E", fontSize: 14 }}
+        >
+          <ChevronLeft className="w-4 h-4" /> start over
+        </button>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-8 max-w-7xl mx-auto w-full z-10 relative mt-16">
+      <main className="flex-1 flex flex-col items-center justify-center p-6 pt-28 pb-16 max-w-7xl mx-auto w-full relative">
         {step === "scene" && (
           <div className="w-full animate-in fade-in slide-in-from-bottom-8">
             <div className="text-center mb-12">
-              <h2 className="text-5xl font-black text-foreground mb-4">Choose Your Experience</h2>
-              <p className="text-2xl text-muted-foreground">Select the vibe you want to capture today.</p>
+              <h2 className="m-0 font-extrabold lowercase" style={{ fontSize: "clamp(36px, 6vw, 72px)", lineHeight: 0.95, letterSpacing: "-0.04em" }}>
+                choose your{" "}
+                <span className="inline-block rounded-[0.2em]" style={{ padding: "0 0.15em", background: "var(--bb-lime)", transform: "rotate(-2deg)" }}>
+                  experience
+                </span>
+              </h2>
+              <p className="bb-mono mt-4" style={{ fontSize: 15, color: "#3A5670" }}>
+                select the vibe you want to capture today.
+              </p>
             </div>
-            
+
             {loadingScenes ? (
-              <div className="flex justify-center p-20"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>
+              <div className="flex justify-center p-20">
+                <Loader2 className="w-12 h-12 animate-spin" style={{ color: "#FF6B4A" }} />
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {scenes?.map((scene) => (
-                  <button
-                    key={scene.id}
-                    onClick={() => handleSceneSelect(scene)}
-                    className="group text-left rounded-3xl overflow-hidden border-2 border-transparent hover:border-primary transition-all duration-300 shadow-xl hover:shadow-2xl hover:-translate-y-2 bg-card relative focus:outline-none focus:ring-4 focus:ring-primary focus:ring-offset-4 focus:ring-offset-background"
-                  >
-                    <div className="aspect-[4/5] w-full relative overflow-hidden">
-                      <img 
-                        src={SCENE_IMAGES[scene.id]} 
-                        alt={scene.name} 
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                      <div className="absolute bottom-0 left-0 p-8">
-                        <h3 className="text-3xl font-bold text-white mb-2">{scene.name}</h3>
-                        <p className="text-white/80 font-medium text-lg mb-2">{scene.tagline}</p>
-                        <p className="text-white/60 text-sm">{scene.description}</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-7">
+                {scenes?.map((scene) => {
+                  const meta = SCENE_META[scene.id] ?? FALLBACK_META;
+                  return (
+                    <button
+                      key={scene.id}
+                      onClick={() => handleSceneSelect(scene)}
+                      className="bb-tilt group text-left flex flex-col overflow-hidden rounded-[28px] bg-white"
+                      style={{ border: "3px solid #061A2E", boxShadow: `8px 8px 0 ${meta.shadow}` }}
+                    >
+                      <div className="relative h-[300px] w-full overflow-hidden">
+                        <img
+                          src={SCENE_IMAGES[scene.id]}
+                          alt={scene.name}
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
+                        <span
+                          className="bb-mono absolute rounded-full"
+                          style={{ left: 16, top: 16, fontSize: 12, padding: "6px 12px", background: meta.tagBg, border: "2px solid #061A2E", transform: "rotate(-4deg)" }}
+                        >
+                          {meta.tag}
+                        </span>
                       </div>
-                    </div>
-                  </button>
-                ))}
+                      <div className="flex flex-col gap-2" style={{ padding: "22px 24px 26px" }}>
+                        <h3 className="m-0 font-extrabold lowercase" style={{ fontSize: 28, letterSpacing: "-0.03em" }}>
+                          {scene.name}
+                        </h3>
+                        <p className="m-0" style={{ fontSize: 16, color: "#3A5670" }}>
+                          {scene.tagline}
+                        </p>
+                        {scene.description && (
+                          <p className="m-0" style={{ fontSize: 13, color: "#7F98AF" }}>
+                            {scene.description}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -150,55 +187,87 @@ export default function Create() {
         {step === "capture" && (
           <div className="w-full max-w-4xl mx-auto animate-in fade-in zoom-in-95">
             <div className="text-center mb-8">
-              <h2 className="text-4xl font-black text-foreground mb-2">Strike a Pose</h2>
-              <p className="text-xl text-muted-foreground">Look at the camera and smile.</p>
+              <h2 className="m-0 font-extrabold lowercase" style={{ fontSize: "clamp(32px, 5vw, 56px)", lineHeight: 0.95, letterSpacing: "-0.04em" }}>
+                strike a pose
+              </h2>
+              <p className="bb-mono mt-3" style={{ fontSize: 15, color: "#3A5670" }}>
+                look at the camera and smile.
+              </p>
             </div>
-            
-            <div className="bg-card rounded-[2rem] p-4 shadow-2xl border border-card-border overflow-hidden">
+
+            <div className="rounded-[28px] bg-white p-4" style={{ border: "3px solid #061A2E", boxShadow: "8px 8px 0 #3FC6FF" }}>
               <WebcamCapture photoBase64={photoBase64} onCapture={handleCapture} />
             </div>
 
             {photoBase64 && (
               <div className="mt-8 flex justify-center gap-4">
-                <Button size="lg" variant="outline" className="rounded-full text-lg h-16 px-8" onClick={() => setPhotoBase64(null)}>
-                  <RefreshCcw className="mr-2" /> Retake
-                </Button>
-                <Button size="lg" className="rounded-full text-lg h-16 px-12 bg-primary text-primary-foreground" onClick={handleSubmit}>
-                  Looks Good! <ArrowRight className="ml-2" />
-                </Button>
+                <button
+                  onClick={() => setPhotoBase64(null)}
+                  className="bb-press inline-flex items-center gap-2 rounded-full font-extrabold"
+                  style={{ padding: "16px 28px", background: "#FFFFFF", color: "#061A2E", fontSize: 17, border: "3px solid #061A2E", boxShadow: "5px 5px 0 #061A2E" }}
+                >
+                  <RefreshCcw className="w-5 h-5" /> retake
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  className="bb-press inline-flex items-center gap-2 rounded-full font-extrabold"
+                  style={{ padding: "16px 32px", background: "var(--bb-lime)", color: "#061A2E", fontSize: 17, border: "3px solid #061A2E", boxShadow: "5px 5px 0 #FF6B4A" }}
+                >
+                  looks good! <ArrowRight className="w-5 h-5" />
+                </button>
               </div>
             )}
           </div>
         )}
 
         {step === "processing" && generation?.photoStatus === "failed" && (
-          <div className="flex flex-col items-center justify-center text-center animate-in fade-in duration-500 space-y-6 max-w-lg">
-            <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
-              <Camera className="w-10 h-10 text-destructive" />
+          <div className="flex flex-col items-center justify-center text-center animate-in fade-in duration-500 gap-6 max-w-lg">
+            <div
+              className="flex items-center justify-center rounded-full"
+              style={{ width: 80, height: 80, background: "#FFE1D6", border: "3px solid #061A2E" }}
+            >
+              <Camera className="w-10 h-10" style={{ color: "#E0482A" }} />
             </div>
-            <h2 className="text-4xl font-black text-foreground">Something Went Wrong</h2>
-            <p className="text-lg text-muted-foreground break-words">
+            <h2 className="m-0 font-extrabold lowercase" style={{ fontSize: 36, letterSpacing: "-0.03em" }}>
+              something went wrong
+            </h2>
+            <p className="m-0 break-words" style={{ fontSize: 17, color: "#3A5670" }}>
               {generation.error || "We couldn't generate your photo."}
             </p>
             <div className="flex gap-4">
-              <Button size="lg" variant="outline" className="rounded-full text-lg h-14 px-8" onClick={() => setStep("capture")}>
-                <RefreshCcw className="mr-2 w-5 h-5" /> Retake Photo
-              </Button>
-              <Button size="lg" className="rounded-full text-lg h-14 px-8 bg-primary text-primary-foreground" onClick={handleSubmit}>
-                Try Again
-              </Button>
+              <button
+                onClick={() => setStep("capture")}
+                className="bb-press inline-flex items-center gap-2 rounded-full font-extrabold"
+                style={{ padding: "14px 26px", background: "#FFFFFF", color: "#061A2E", fontSize: 16, border: "3px solid #061A2E", boxShadow: "4px 4px 0 #061A2E" }}
+              >
+                <RefreshCcw className="w-4 h-4" /> retake photo
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="bb-press rounded-full font-extrabold"
+                style={{ padding: "14px 26px", background: "var(--bb-lime)", color: "#061A2E", fontSize: 16, border: "3px solid #061A2E", boxShadow: "4px 4px 0 #FF6B4A" }}
+              >
+                try again
+              </button>
             </div>
           </div>
         )}
 
         {step === "processing" && generation?.photoStatus !== "failed" && (
-          <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center animate-in fade-in duration-500 space-y-8">
-            <div className="relative w-full aspect-[4/3]">
+          <div className="w-full max-w-xl mx-auto flex flex-col items-center text-center animate-in fade-in duration-500 gap-8">
+            <div
+              className="relative w-full aspect-[4/3] rounded-[28px] overflow-hidden"
+              style={{ border: "3px solid #061A2E", boxShadow: "8px 8px 0 var(--bb-lime)", color: "#061A2E" }}
+            >
               <BlinkingDotsScene />
             </div>
-            <div className="space-y-2">
-              <h2 className="text-4xl font-black text-foreground">Creating Magic...</h2>
-              <p className="text-xl text-muted-foreground max-w-md">Our AI is putting you on the water. This takes just a moment.</p>
+            <div>
+              <h2 className="m-0 font-extrabold lowercase" style={{ fontSize: 36, letterSpacing: "-0.03em" }}>
+                creating magic&hellip;
+              </h2>
+              <p className="bb-mono mt-2 max-w-md" style={{ fontSize: 14, color: "#3A5670" }}>
+                our AI is putting you on the water. this takes just a moment.
+              </p>
             </div>
           </div>
         )}
@@ -206,41 +275,50 @@ export default function Create() {
         {step === "result" && generation?.photoUrl && (
           <div className="w-full max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="rounded-[2rem] overflow-hidden shadow-2xl border-4 border-white/50 relative group aspect-[4/3]">
+              <div
+                className="relative aspect-[4/3] overflow-hidden rounded-[28px]"
+                style={{ border: "3px solid #061A2E", boxShadow: "10px 10px 0 #FF6B4A" }}
+              >
                 <img src={generation.photoUrl} alt="Your creation" className="w-full h-full object-cover" />
               </div>
-              <div className="space-y-8">
+              <div className="flex flex-col gap-8">
                 <div>
-                  <h2 className="text-5xl font-black text-foreground mb-4">Wow, look at you!</h2>
-                  <p className="text-2xl text-muted-foreground">Your {generation.sceneName} experience looks incredible.</p>
+                  <h2 className="m-0 font-extrabold lowercase" style={{ fontSize: "clamp(36px, 5vw, 64px)", lineHeight: 0.95, letterSpacing: "-0.04em" }}>
+                    wow, look at you!
+                  </h2>
+                  <p className="m-0 mt-3" style={{ fontSize: 20, color: "#3A5670" }}>
+                    your {generation.sceneName} experience looks incredible.
+                  </p>
                 </div>
 
-                <div className="pt-4 flex flex-wrap items-start gap-6">
+                <div className="flex flex-wrap items-start gap-6">
                   {generation.downloadUrl ? (
-                    <div className="flex items-center gap-4 bg-card p-5 rounded-3xl border border-card-border shadow-lg">
+                    <div
+                      className="flex items-center gap-4 rounded-[28px] bg-white"
+                      style={{ padding: 20, border: "3px solid #061A2E", boxShadow: "6px 6px 0 #3FC6FF" }}
+                    >
                       <PhotoQrCode url={generation.downloadUrl} />
                       <div className="max-w-[180px]">
-                        <p className="font-bold text-lg flex items-center gap-2">
-                          <QrCode className="w-5 h-5 text-primary" /> Scan to Download
+                        <p className="m-0 font-extrabold flex items-center gap-2" style={{ fontSize: 16 }}>
+                          <QrCode className="w-5 h-5" style={{ color: "#FF6B4A" }} /> scan to download
                         </p>
-                        <p className="text-muted-foreground text-sm mt-1">
+                        <p className="bb-mono m-0 mt-1.5" style={{ fontSize: 12, color: "#3A5670" }}>
                           Point your phone's camera at the code to save your photo.
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="rounded-full text-lg h-14 px-8"
+                    <button
                       onClick={() => generation.photoUrl && downloadFile(generation.photoUrl, "boat-booth-photo")}
+                      className="bb-press inline-flex items-center gap-2 rounded-full font-extrabold"
+                      style={{ padding: "16px 28px", background: "#FFFFFF", color: "#061A2E", fontSize: 17, border: "3px solid #061A2E", boxShadow: "5px 5px 0 #061A2E" }}
                     >
-                      <Download className="mr-2 w-5 h-5" /> Download Photo
-                    </Button>
+                      <Download className="w-5 h-5" /> download photo
+                    </button>
                   )}
-                  <Button variant="ghost" size="lg" className="text-lg self-center" onClick={reset}>
-                    I'm done, next guest
-                  </Button>
+                  <button onClick={reset} className="bb-mono self-center" style={{ fontSize: 14, color: "#061A2E", background: "none", border: "none" }}>
+                    i&apos;m done, next guest &#8594;
+                  </button>
                 </div>
               </div>
             </div>
@@ -263,7 +341,7 @@ function PhotoQrCode({ url }: { url: string }) {
     QRCode.toDataURL(url, {
       width: 220,
       margin: 1,
-      color: { dark: "#0f172a", light: "#ffffff" },
+      color: { dark: "#061A2E", light: "#ffffff" },
     })
       .then((dataUrl) => {
         if (!cancelled) setQrDataUrl(dataUrl);
@@ -275,16 +353,10 @@ function PhotoQrCode({ url }: { url: string }) {
   }, [url]);
 
   if (!qrDataUrl) {
-    return <div className="w-[140px] h-[140px] rounded-2xl bg-muted animate-pulse" />;
+    return <div className="w-[140px] h-[140px] rounded-2xl animate-pulse" style={{ background: "#F2FBFF", border: "2px solid #061A2E" }} />;
   }
 
-  return (
-    <img
-      src={qrDataUrl}
-      alt="Scan to download your photo"
-      className="w-[140px] h-[140px] rounded-2xl border border-card-border"
-    />
-  );
+  return <img src={qrDataUrl} alt="Scan to download your photo" className="w-[140px] h-[140px] rounded-2xl" style={{ border: "2px solid #061A2E" }} />;
 }
 
 // Subcomponent for Webcam
@@ -337,12 +409,12 @@ function WebcamCapture({
     canvas.height = videoRef.current.videoHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     // Mirror drawing
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(videoRef.current, 0, 0);
-    
+
     const base64 = canvas.toDataURL("image/jpeg", 0.9);
     setCaptured(base64);
     onCapture(base64);
@@ -373,26 +445,38 @@ function WebcamCapture({
     }
 
     return (
-      <div className="aspect-video bg-muted flex flex-col items-center justify-center p-12 text-center rounded-2xl">
-        <Camera className="w-16 h-16 text-muted-foreground mb-4" />
-        <h3 className="text-2xl font-bold mb-2">Camera Unavailable</h3>
-        <p className="text-muted-foreground">Please allow camera access or use an alternative device.</p>
+      <div className="aspect-video flex flex-col items-center justify-center p-12 text-center rounded-[20px]" style={{ background: "#F2FBFF" }}>
+        <Camera className="w-16 h-16 mb-4" style={{ color: "#7F98AF" }} />
+        <h3 className="m-0 font-extrabold lowercase" style={{ fontSize: 24 }}>
+          camera unavailable
+        </h3>
+        <p className="m-0 mt-2" style={{ color: "#3A5670" }}>
+          Please allow camera access or use an alternative device.
+        </p>
         <div className="mt-8">
-           <label className="cursor-pointer bg-primary text-primary-foreground px-8 py-4 rounded-full font-medium text-lg hover:bg-primary/90">
-             Upload Photo Instead
-             <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-               const file = e.target.files?.[0];
-               if (file) {
-                 const reader = new FileReader();
-                 reader.onload = (ev) => {
-                   const res = ev.target?.result as string;
-                   setCaptured(res);
-                   onCapture(res);
-                 };
-                 reader.readAsDataURL(file);
-               }
-             }} />
-           </label>
+          <label
+            className="bb-press cursor-pointer inline-flex items-center rounded-full font-extrabold"
+            style={{ padding: "16px 28px", background: "var(--bb-lime)", color: "#061A2E", fontSize: 16, border: "3px solid #061A2E", boxShadow: "4px 4px 0 #FF6B4A" }}
+          >
+            upload photo instead
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const res = ev.target?.result as string;
+                    setCaptured(res);
+                    onCapture(res);
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+          </label>
         </div>
       </div>
     );
@@ -404,14 +488,14 @@ function WebcamCapture({
         <img src={captured} alt="Captured" className="w-full h-full object-cover scale-x-[-1]" />
       ) : (
         <>
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            muted 
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
             className="w-full h-full object-cover scale-x-[-1]"
           />
-          
+
           {countdown !== null ? (
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm z-20">
               <span className="text-[15rem] font-black text-white drop-shadow-2xl animate-in zoom-in duration-300">
@@ -420,11 +504,12 @@ function WebcamCapture({
             </div>
           ) : (
             <div className="absolute bottom-8 left-0 right-0 flex justify-center z-10">
-              <button 
+              <button
                 onClick={startCountdown}
-                className="w-24 h-24 rounded-full border-4 border-white/50 flex items-center justify-center bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all active:scale-95"
+                className="rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                style={{ width: 96, height: 96, border: "4px solid var(--bb-lime)", background: "rgba(6,26,46,.35)", backdropFilter: "blur(6px)" }}
               >
-                <div className="w-16 h-16 bg-white rounded-full shadow-lg" />
+                <div className="rounded-full" style={{ width: 64, height: 64, background: "var(--bb-lime)", boxShadow: "0 4px 0 #061A2E" }} />
               </button>
             </div>
           )}
