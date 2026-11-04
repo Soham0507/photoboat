@@ -10,7 +10,7 @@
 // unlike the earlier xAI-backed version.
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { generateOfflinePhoto } from "@/lib/offline-compositor";
-import { SCENE_IMAGES } from "@/lib/scenes";
+import { SCENE_IMAGES, SCENE_SUBJECT_SLOTS } from "@/lib/scenes";
 
 export interface Scene {
   id: string;
@@ -130,7 +130,7 @@ export function useCreateGeneration() {
         try {
           const sceneImageUrl = SCENE_IMAGES[data.sceneId];
           if (!sceneImageUrl) throw new Error(`Unknown scene "${data.sceneId}".`);
-          const photoUrl = await generateOfflinePhoto(data.photoBase64, sceneImageUrl);
+          const photoUrl = await generateOfflinePhoto(data.photoBase64, sceneImageUrl, SCENE_SUBJECT_SLOTS[data.sceneId]);
 
           const g = generations.get(id);
           if (!g) return;

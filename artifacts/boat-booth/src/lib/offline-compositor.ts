@@ -183,25 +183,66 @@ async function cutoutPerson(photoDataUrl: string): Promise<HTMLCanvasElement> {
   return cutoutCanvas;
 }
 
-/** Draws `img` onto a `w`x`h` canvas context, covering it (crop-to-fill, like CSS `object-fit: cover`). */
-function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) {
+/** The source crop window `drawCover` below reads from `img` — covering a `w`x`h` canvas, like CSS `object-fit: cover`. */
+function coverCropWindow(img: HTMLImageElement, w: number, h: number) {
   const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
   const sw = w / scale;
   const sh = h / scale;
   const sx = (img.naturalWidth - sw) / 2;
   const sy = (img.naturalHeight - sh) / 2;
+  return { sx, sy, sw, sh };
+}
+
+/** Draws `img` onto a `w`x`h` canvas context, covering it (crop-to-fill, like CSS `object-fit: cover`). */
+function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: number, h: number) {
+  const { sx, sy, sw, sh } = coverCropWindow(img, w, h);
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+}
+
+/**
+ * Maps a point given as a fraction (0-1) of the *original* scene image into
+ * pixel coordinates on the `w`x`h` output canvas, accounting for the crop
+ * `drawCover` applied to fit the image's aspect ratio to the output's.
+ */
+function mapImageFractionToOutput(
+  fracX: number,
+  fracY: number,
+  img: HTMLImageElement,
+  crop: { sx: number; sy: number; sw: number; sh: number },
+  w: number,
+  h: number,
+) {
+  const origX = fracX * img.naturalWidth;
+  const origY = fracY * img.naturalHeight;
+  return { x: ((origX - crop.sx) / crop.sw) * w, y: ((origY - crop.sy) / crop.sh) * h };
 }
 
 const OUTPUT_WIDTH = 1200;
 const OUTPUT_HEIGHT = 900;
 
+export interface SceneSubjectSlot {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 /**
  * The whole offline pipeline: segment the guest out of their captured photo
  * and composite them onto the chosen scene's background image. Returns a
  * JPEG data URL — never touches the network.
+ *
+ * `subjectSlot`, when given, is where the *original* person already stands
+ * in the background photo (see SCENE_SUBJECT_SLOTS in lib/scenes.ts) — the
+ * guest's cutout is scaled and positioned to cover that region instead of a
+ * generic bottom-center placement, so they read as replacing that person
+ * rather than floating in front of them.
  */
-export async function generateOfflinePhoto(photoBase64: string, sceneImageUrl: string): Promise<string> {
+export async function generateOfflinePhoto(
+  photoBase64: string,
+  sceneImageUrl: string,
+  subjectSlot?: SceneSubjectSlot,
+): Promise<string> {
   const [cutout, sceneImg] = await Promise.all([cutoutPerson(photoBase64), loadImage(sceneImageUrl)]);
 
   const out = document.createElement("canvas");
@@ -212,9 +253,33 @@ export async function generateOfflinePhoto(photoBase64: string, sceneImageUrl: s
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
 
+  const crop = coverCropWindow(sceneImg, OUTPUT_WIDTH, OUTPUT_HEIGHT);
   drawCover(ctx, sceneImg, OUTPUT_WIDTH, OUTPUT_HEIGHT);
 
-  // Place the cutout filling most of the frame height, bottom-anchored and
+  if (subjectSlot) {
+    const topLeft = mapImageFractionToOutput(subjectSlot.left, subjectSlot.top, sceneImg, crop, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+    const bottomRight = mapImageFractionToOutput(subjectSlot.right, subjectSlot.bottom, sceneImg, crop, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+    const slotCenterX = (topLeft.x + bottomRight.x) / 2;
+    const slotBottom = bottomRight.y;
+    const slotHeight = bottomRight.y - topLeft.y;
+
+    // Overscan the original subject's box a bit — the guest's own
+    // proportions won't match the original person's exactly, and this is
+    // meant to fully cover them, not just match their bounding box.
+    const OVERSCAN = 1.3;
+    const MAX_UPSCALE = 2.2;
+    const personScale = Math.min(MAX_UPSCALE, (slotHeight * OVERSCAN) / cutout.height);
+    const drawW = cutout.width * personScale;
+    const drawH = cutout.height * personScale;
+    const drawX = slotCenterX - drawW / 2;
+    const drawY = slotBottom - drawH;
+    ctx.drawImage(cutout, drawX, drawY, drawW, drawH);
+
+    return out.toDataURL("image/jpeg", 0.92);
+  }
+
+  // No known subject slot for this scene (e.g. a distant group shot) —
+  // place the cutout filling most of the frame height, bottom-anchored and
   // centered — reads like they're standing in the scene rather than pasted
   // in a corner. Capped so a low-resolution capture doesn't get blown up
   // into a visibly soft, blurry cutout — better to show them a bit smaller
