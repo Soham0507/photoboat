@@ -10,20 +10,16 @@ import {
 import QRCode from "qrcode";
 import { BlinkingDotsScene } from "@/components/BlinkingDotsScene";
 import { Camera, ChevronLeft, RefreshCcw, Download, ArrowRight, Loader2, QrCode } from "lucide-react";
-import pontoonImg from "@assets/pontoon_wi.jpg_1780096222900.jpeg";
-import wakeImg from "@assets/wakesurfing.jpg_1780096222900.jpeg";
-import bassImg from "@assets/bass_fishing.jpg_1780096222901.jpeg";
-
-const SCENE_IMAGES: Record<string, string> = {
-  "pontoon-sunset": pontoonImg,
-  "wakesurfing": wakeImg,
-  "bass-fishing": bassImg,
-};
+import { SCENE_IMAGES } from "@/lib/scenes";
+import { preloadSegmenter } from "@/lib/offline-compositor";
 
 const SCENE_META: Record<string, { tag: string; tagBg: string; shadow: string }> = {
   "pontoon-sunset": { tag: "most picked", tagBg: "var(--bb-lime)", shadow: "#FF6B4A" },
   "wakesurfing": { tag: "high energy", tagBg: "#FFD23F", shadow: "#3FC6FF" },
   "bass-fishing": { tag: "chill mode", tagBg: "#FF7AD9", shadow: "var(--bb-lime)" },
+  "boat-cruising": { tag: "smooth sailing", tagBg: "#8EDCFF", shadow: "#FF7AD9" },
+  "jet-skiing": { tag: "full throttle", tagBg: "#FF6B4A", shadow: "#3FC6FF" },
+  "trophy-catch": { tag: "the big one", tagBg: "var(--bb-lime)", shadow: "#8B5CFF" },
 };
 const FALLBACK_META = { tag: "pick me", tagBg: "#FFD23F", shadow: "#3FC6FF" };
 
@@ -38,6 +34,12 @@ export default function Create() {
 
   const { data: scenes, isLoading: loadingScenes } = useListScenes();
   const createGeneration = useCreateGeneration();
+
+  // Warm up the offline segmentation model while the guest is still picking
+  // a scene, so it's already loaded by the time they hit "looks good!".
+  useEffect(() => {
+    preloadSegmenter();
+  }, []);
 
   const { data: generation } = useGetGeneration(generationId || "", {
     query: {
@@ -330,8 +332,10 @@ export default function Create() {
 }
 
 // Renders a QR code for a given download URL, generated client-side via the
-// `qrcode` package. Each photo gets its own short /api/photos/<id>.png URL
-// (vite.config.ts) rather than trying to encode the full image into the QR.
+// `qrcode` package. Only used when a generation has a `downloadUrl` — the
+// offline compositor doesn't set one (no backend to host the photo at a
+// short URL), so guests get the "Download Photo" button instead; this stays
+// ready for a future backend that can host photos for phone QR scanning.
 function PhotoQrCode({ url }: { url: string }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -382,7 +386,14 @@ function WebcamCapture({
 
   const startCamera = useCallback(async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+      // Ask for a high-res feed — the offline cutout crops tight to the
+      // guest and scales that crop up to fill the result frame, so a sharp
+      // source capture matters a lot more here than it would for a live
+      // preview. Browsers pick the closest resolution the camera supports
+      // when the exact ideal isn't available, so this degrades gracefully.
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
+      });
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;

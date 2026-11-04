@@ -3,7 +3,14 @@
 // in-memory so the UI can be previewed end to end without a real server.
 // Aliased in vite.config.ts — remove the alias once the real package/backend
 // is available again.
+//
+// Generation itself (useCreateGeneration below) runs the offline compositor
+// (src/lib/offline-compositor.ts) entirely client-side — the booth runs at
+// venues with no internet connection, so there's no server call here at all,
+// unlike the earlier xAI-backed version.
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import { generateOfflinePhoto } from "@/lib/offline-compositor";
+import { SCENE_IMAGES } from "@/lib/scenes";
 
 export interface Scene {
   id: string;
@@ -43,6 +50,24 @@ const SCENES: Scene[] = [
     name: "Bass Fishing",
     tagline: "Reel in the big one",
     description: "Cast a line from the bow at sunrise.",
+  },
+  {
+    id: "boat-cruising",
+    name: "Boat Cruising",
+    tagline: "Captain your own crew",
+    description: "Take the wheel for a calm autumn cruise across the lake.",
+  },
+  {
+    id: "jet-skiing",
+    name: "Jet Skiing",
+    tagline: "Open throttle, open water",
+    description: "Carve up spray on a jet ski at full speed.",
+  },
+  {
+    id: "trophy-catch",
+    name: "Trophy Catch",
+    tagline: "Hold up your trophy catch",
+    description: "Show off the big one you just reeled in.",
   },
 ];
 
@@ -96,29 +121,20 @@ export function useCreateGeneration() {
         queryClientNotify(queryClient, getGetBoothStatsQueryKey());
       };
 
-      // Real call to the dev-server-only xAI proxy (vite.config.ts) — fire
-      // and forget here; useGetGeneration's polling picks up the result.
+      // Offline, client-side only: segment the guest out of their photo and
+      // composite them onto the scene's background image (offline-compositor.ts).
+      // No network request — fire and forget here, useGetGeneration's polling
+      // picks up the result. downloadUrl is left unset; the result screen
+      // falls back to downloading photoUrl (a data: URL) directly.
       (async () => {
         try {
-          const res = await fetch("/api/generate-photo", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              photoBase64: data.photoBase64,
-              sceneDescription: scene?.description ?? "a beautiful day out on the water",
-            }),
-          });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+          const sceneImageUrl = SCENE_IMAGES[data.sceneId];
+          if (!sceneImageUrl) throw new Error(`Unknown scene "${data.sceneId}".`);
+          const photoUrl = await generateOfflinePhoto(data.photoBase64, sceneImageUrl);
 
           const g = generations.get(id);
           if (!g) return;
-          generations.set(id, {
-            ...g,
-            photoStatus: "ready",
-            photoUrl: json.photoUrl,
-            downloadUrl: json.downloadUrl,
-          });
+          generations.set(id, { ...g, photoStatus: "ready", photoUrl });
         } catch (err) {
           const g = generations.get(id);
           if (!g) return;

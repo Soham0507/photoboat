@@ -8,9 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import { ArrowRight } from "lucide-react";
 import { useBrand } from "@/brand-bridge";
-import pontoonImg from "@assets/pontoon_wi.jpg_1780096222900.jpeg";
-import wakeImg from "@assets/wakesurfing.jpg_1780096222900.jpeg";
-import bassImg from "@assets/bass_fishing.jpg_1780096222901.jpeg";
+import { SCENE_IMAGES } from "@/lib/scenes";
 
 const STEPS = [
   {
@@ -18,7 +16,7 @@ const STEPS = [
     bg: "#8EDCFF",
     rotate: "-1.5deg",
     title: "pick a scene",
-    description: "Sunset pontoon, wakesurfing or bass fishing. Choose your boat day.",
+    description: "Pontoon, wakesurfing, jet skiing and more. Choose your boat day.",
   },
   {
     num: "02",
@@ -44,7 +42,7 @@ const EXPERIENCES = [
     tag: "most picked",
     tagBg: "var(--bb-lime)",
     shadow: "#FF6B4A",
-    image: pontoonImg,
+    image: SCENE_IMAGES["pontoon-sunset"],
   },
   {
     id: "wakesurfing",
@@ -53,7 +51,7 @@ const EXPERIENCES = [
     tag: "high energy",
     tagBg: "#FFD23F",
     shadow: "#3FC6FF",
-    image: wakeImg,
+    image: SCENE_IMAGES["wakesurfing"],
   },
   {
     id: "bass-fishing",
@@ -62,7 +60,34 @@ const EXPERIENCES = [
     tag: "chill mode",
     tagBg: "#FF7AD9",
     shadow: "var(--bb-lime)",
-    image: bassImg,
+    image: SCENE_IMAGES["bass-fishing"],
+  },
+  {
+    id: "boat-cruising",
+    name: "boat cruising",
+    tagline: "captain your own crew.",
+    tag: "smooth sailing",
+    tagBg: "#8EDCFF",
+    shadow: "#FF7AD9",
+    image: SCENE_IMAGES["boat-cruising"],
+  },
+  {
+    id: "jet-skiing",
+    name: "jet skiing",
+    tagline: "open throttle, open water.",
+    tag: "full throttle",
+    tagBg: "#FF6B4A",
+    shadow: "#3FC6FF",
+    image: SCENE_IMAGES["jet-skiing"],
+  },
+  {
+    id: "trophy-catch",
+    name: "trophy catch",
+    tagline: "hold up your trophy catch.",
+    tag: "the big one",
+    tagBg: "var(--bb-lime)",
+    shadow: "#8B5CFF",
+    image: SCENE_IMAGES["trophy-catch"],
   },
 ];
 
@@ -388,7 +413,7 @@ export default function Home() {
             </span>
           </h2>
           <p className="bb-mono m-0 max-w-[300px]" style={{ fontSize: 14, lineHeight: 1.6, color: "#3A5670" }}>
-            3 scenes. zero sunburn. each one renders in seconds.
+            6 scenes. zero sunburn. each one renders in seconds.
           </p>
         </div>
         <div className="grid gap-7" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))" }}>
